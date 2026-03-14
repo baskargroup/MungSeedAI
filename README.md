@@ -97,4 +97,4 @@ MIT — see [LICENSE](LICENSE).
 
 ## Contact
 
-Code: Talukder Zaki Jubery (jubery@iastate.edu) · Manuscript: Arti Singh (artisingh@iastate.edu)
+Code: Zaki Jubery (znjubery@iastate.edu) and Baskar Ganapahtysubramanian (baskarg@iastate.edu) · Manuscript: Arti Singh (artisingh@iastate.edu)
