@@ -14,15 +14,14 @@ This repository contains the image segmentation and seed trait extraction code a
 
 ## Overview
 
-MungSeedAI uses Meta AI's [Segment Anything Model (SAM)](https://github.com/facebookresearch/segment-anything) to automatically segment individual seeds from flatbed scanner images. Seeds are arranged in a 6 × 10 physical grid; the pipeline:
+MungSeedAI uses Meta AI's [Segment Anything Model (SAM)](https://github.com/facebookresearch/segment-anything) to automatically segment individual seeds from flatbed scanner images and extract per-seed morphological and color traits. The pipeline:
 
-1. Runs SAM automatic mask generation on each cropped scan image
-2. Filters masks by area (IQR-based outlier removal) to retain only seed-sized objects
+1. Runs SAM automatic mask generation on each input image
+2. Filters masks by area using IQR-based outlier removal to retain only seed-sized objects
 3. Measures morphological traits per seed: area, major/minor axis length, aspect ratio, and mean hue (HSV)
-4. Assigns each detected seed to its numbered grid position using a bipartite nearest-neighbor matching
-5. Saves per-image outputs: color mask, filtered mask, annotated object-ID image, transparent contour overlay, and a CSV of seed properties
+4. Saves per-image outputs: a random-color mask, a filtered binary mask applied to the original image, and a CSV of seed properties
 
-The trait data feed downstream GWAS and genomic analyses reported in the companion manuscript.
+The extracted traits feed downstream GWAS and genomic analyses reported in the companion manuscript.
 
 ---
 
@@ -30,7 +29,7 @@ The trait data feed downstream GWAS and genomic analyses reported in the compani
 
 ```
 MungSeedAI/
-├── sam_for_seed_gt2026.py   # Main segmentation and trait extraction script
+├── sam_for_seed.py          # Main segmentation and trait extraction script
 ├── requirements.txt         # Python dependencies
 ├── LICENSE
 └── examples/
@@ -38,9 +37,7 @@ MungSeedAI/
     │   └── Green (PI 201869)_1.jpg          # Example scanner image (cropped, 1 accession)
     └── output/
         ├── Green (PI 201869)_1_color_mask.png        # Random-color SAM masks
-        ├── Green (PI 201869)_1_filtered_mask.png     # Area-filtered binary mask
-        ├── Green (PI 201869)_1_object_ids.png        # Annotated seed IDs
-        ├── Green (PI 201869)_1_transparent_overlay.png  # Contour overlay on original
+        ├── Green (PI 201869)_1_filtered_mask.png     # Area-filtered mask applied to original
         └── Green (PI 201869)_1_seed_properties.csv  # Per-seed trait table
 ```
 
@@ -48,21 +45,16 @@ MungSeedAI/
 
 ## Example Output
 
-| Input scan | Object IDs | Transparent overlay |
+| Input scan | Color mask | Filtered mask |
 |:---:|:---:|:---:|
-| ![input](examples/input/Green%20(PI%20201869)_1.jpg) | ![ids](examples/output/Green%20(PI%20201869)_1_object_ids.png) | ![overlay](examples/output/Green%20(PI%20201869)_1_transparent_overlay.png) |
-
-Color-coded SAM masks and filtered mask:
-
-| Color mask | Filtered mask |
-|:---:|:---:|
-| ![color](examples/output/Green%20(PI%20201869)_1_color_mask.png) | ![filtered](examples/output/Green%20(PI%20201869)_1_filtered_mask.png) |
+| ![input](examples/input/Green%20(PI%20201869)_1.jpg) | ![color](examples/output/Green%20(PI%20201869)_1_color_mask.png) | ![filtered](examples/output/Green%20(PI%20201869)_1_filtered_mask.png) |
 
 Example CSV output (`Green (PI 201869)_1_seed_properties.csv`):
 
-| Object Number | Mask Index | Area | Major Axis Length | Minor Axis Length | Aspect Ratio | Mean Hue | Centroid Row | Centroid Col | Grid Number | Grid Row | Grid Col | Distance To Grid |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | ... | ... | ... | ... | ... | ... | ... | ... | 1 | 1 | 1 | ... |
+| Area | Major Axis Length | Minor Axis Length | Aspect Ratio | Mean Hue |
+|:---:|:---:|:---:|:---:|:---:|
+| 4832 | 89.3 | 67.1 | 1.33 | 42.7 |
+| ... | ... | ... | ... | ... |
 
 ---
 
@@ -71,7 +63,7 @@ Example CSV output (`Green (PI 201869)_1_seed_properties.csv`):
 ### 1. Clone this repository
 
 ```bash
-git clone https://github.com/<your-org>/MungSeedAI.git
+git clone https://github.com/znjubery/MungSeedAI.git
 cd MungSeedAI
 ```
 
@@ -118,35 +110,31 @@ All checkpoints are available at the [SAM model zoo](https://github.com/facebook
 
 ### Quick start with the example image
 
-```bash
-# Run on the provided example (output written to seed_gt_cropped_grid/)
-python sam_for_seed_gt2026.py
-```
-
-By default the script reads from `../data/seed_gt/cropped` and writes outputs to `seed_gt_cropped_grid/`. To run on the bundled example, edit the path variables at the top of the script:
+Edit the path variables at the top of `sam_for_seed.py`:
 
 ```python
 input_directory_1 = "examples/input"
 output_directory  = "examples/output_run"
 ```
 
+Then run:
+
+```bash
+python sam_for_seed.py
+```
+
 ### Configuration
 
-All key parameters are defined as constants near the top of `sam_for_seed_gt2026.py`:
+Key parameters at the top of `sam_for_seed.py`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `sam_checkpoint` | `"sam_vit_l_0b3195.pth"` | Path to the SAM model weights |
+| `input_directory_1` | `"../processed_data/..."` | Path to directory of input images |
+| `output_directory` | `"..."` | Path for output files |
+| `sam_checkpoint` | `"sam_vit_l_0b3195.pth"` | Path to SAM model weights |
 | `model_type` | `"vit_l"` | SAM backbone (`vit_h`, `vit_l`, `vit_b`) |
-| `GRID_ROWS` | `6` | Number of rows in the seed tray |
-| `GRID_COLS` | `10` | Number of columns in the seed tray |
-| `MAX_DISTANCE_TO_GRID` | `60.0` | Maximum pixel distance to assign a seed to a grid cell |
-| `TOP_LEFT` | `(209, 316)` | Top-left corner of the seed grid (pixels) |
-| `TOP_RIGHT` | `(910, 306)` | Top-right corner |
-| `BOTTOM_LEFT` | `(199, 705)` | Bottom-left corner |
-| `BOTTOM_RIGHT` | `(902, 696)` | Bottom-right corner |
 
-> **Note:** The corner coordinates are image-specific. Adjust them to match your scan setup before running on new images. A 6 × 10 grid gives 60 seed positions numbered left-to-right, top-to-bottom.
+Area filtering uses a standard IQR filter (Q1 − 1.5×IQR, Q3 + 1.5×IQR) to automatically remove background detections and outlier-sized objects.
 
 ### Output files per image
 
@@ -155,19 +143,17 @@ For each input image `<name>.jpg` the following files are written to the output 
 | File | Description |
 |------|-------------|
 | `<name>_color_mask.png` | SAM masks rendered with random colors |
-| `<name>_filtered_mask.png` | Masks after IQR area filtering, applied to the original image |
-| `<name>_object_ids.png` | Original image annotated with seed centroids and grid-assigned IDs |
-| `<name>_transparent_overlay.png` | Original image with white contour outlines of filtered seeds |
-| `<name>_seed_properties.csv` | Per-seed table: area, axis lengths, aspect ratio, mean hue, grid position |
+| `<name>_filtered_mask.png` | Area-filtered masks applied to the original image |
+| `<name>_seed_properties.csv` | Per-seed table: area, axis lengths, aspect ratio, mean hue |
 
 ---
 
 ## Hardware Requirements
 
-SAM inference is GPU-accelerated. The script automatically falls back to CPU if no CUDA device is detected, but GPU is strongly recommended for reasonable throughput.
+SAM inference is GPU-accelerated. The script automatically falls back to CPU if no CUDA device is detected, but GPU is strongly recommended.
 
 - **GPU (recommended):** NVIDIA GPU with ≥ 8 GB VRAM (ViT-L); ≥ 16 GB for ViT-H
-- **CPU (fallback):** Processing will be significantly slower (~minutes per image)
+- **CPU (fallback):** Significantly slower (~minutes per image)
 - **Tested on:** NVIDIA A100 80 GB (HPC cluster)
 
 ---
